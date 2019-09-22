@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Document</title>
+</head>
+<body>
+  <script>
+    // console.log([...Array(50).keys()])
+    var arr = [...Array(50)];
+    // console.log(arr)
+    arr.forEach((val, index) => {
+      document.write('<p>' + index + '</p>');
+    })
+    var doc = document.documentElement;
+
+
+    // https://mp.weixin.qq.com/s/crXTrI1hJSlbWtAco-jHFw
+    /**
+     * 1.时间戳
+     * 使用时间戳方式，页面加载的时候就会开始计时，
+     * 如果页面加载时间大于我们设定的delay，
+     * 第一次触发事件回调的时候便会立即fn，并不会延迟。
+     * 如果最后一次触发回调与前一次触发回调的时间差小于delay，
+     * 则最后一次触发事件并不会执行fn
+    */
+    function throttle1(fn, delay) {
+      var timer;
+      var start = Date.now();
+      return function() {
+        timer = setTimeout(function() {
+          var curr = Date.now();
+          if (curr - start > delay) {
+            fn && fn();
+            start = curr;
+          }
+        }, delay);
+      }
+    }
+    /**
+     * 2.定时器
+     * 使用定时器方式，我们第一次触发回调的时候才会开始计时，
+     * 如果最后一次触发回调事件与前一次时间间隔小于delay，delay之后仍会执行fn。
+    */
+    function throttle2(fn, delay) {
+      var flag;
+      return function() {
+        var context = this, args = arguments;
+        if (!flag) {
+          flag = setTimeout(function() {
+            fn.apply(context, args);
+            flag = false;
+          }, delay);
+        }
+      }
+    }
+
+    function throttles21(fn, delay) {
+      var canRun = true;
+      return function() {
+        if (!canRun) return;
+        canRun = false;
+        setTimeout(() => {
+          fn.apply(this, arguments);
+          canRun = true;
+        }, delay);
+      }
+    }
+
+    // 上述两种方式（时间戳、定时器）结合起来优势互补，便会在第一次触发事件时执行fn，最后一次与前一次间隔比较短，delay之后也会执行fn。
+    // TODO has bug
+    function throttle3(fn, delay) {
+      var start = Date.now();
+      return function() {
+        var context = this,
+            args = arguments,
+            curr = Date.now(),
+            remainTime = (curr - start) - delay;
+        if (remainTime >= 0) {
+          fn.apply(context, args);
+          // start = curr;
+        } else {
+          timer = setTimeout(function() {
+            fn.apply(context, args);
+          }, remainTime);
+        }
+      }
+    }
+
+    // 司徒正美 https://mp.weixin.qq.com/s/xMCna_VtoOev0K5uK1J0aQ
+    function throttle4(fn, delay) {
+      var timer;
+      var start = +new Date;
+      return function() {
+        var curr = new Date - 0, context = this, args = arguments;
+        timer && clearTimeout(timer);
+        // console.log(curr - start, 'start:', start, 'curr:', curr);
+        if (curr - start >= delay) {
+          console.log('>= invoked********');
+          fn.apply(context, args);
+          start = curr;
+        } else {
+          // 让方法在脱离事件后也能执行一次
+          console.log('<');
+          timer = setTimeout(function() {
+            fn.apply(context, args);
+          }, delay);
+        }
+      }
+    }
+
+    // https://github.com/InterviewMap/CS-Interview-Knowledge-Map/blob/master/JS/JS-ch.md#%E8%8A%82%E6%B5%81
+    /**
+     * underscore 节流函数，返回函数连续调用时，func 执行频率限定为 次 / wait
+     * @param  {function}   func      回调函数
+     * @param  {number}     wait      表示时间窗口的间隔
+     * @param  {object}     options   如果想忽略开始函数的的调用，传入{leading: false}。
+     *                                如果想忽略结尾函数的调用，传入{trailing: false}
+     *                                两者不能共存，否则函数不能执行
+     * @return {function}             返回客户调用函数   
+     */
+    function throttle5(func, wait, options) {
+      var context, args, result;
+      var timeout = null;
+      // 之前的时间戳
+      var previous = 0;
+      // 如果 options 没传则设为空对象
+      if (!options) options = {};
+      // 定时器回调函数
+      var later = function() {
+        // 如果设置了 leading，就将 previous 设为 0
+        // 用于下面函数的第一个 if 判断
+        previous = options.leading === false ? 0 : Date.now();
+        // 置空一是为了防止内存泄漏，二是为了下面的定时器判断
+        timeout = null;
+        result = func.apply(context, args);
+        if (!timeout) context = args = null;
+      };
+      return function() {
+        // 获得当前时间戳
+        var now = Date.now();
+        // 首次进入前者肯定为 true
+        // 如果需要第一次不执行函数
+        // 就将上次时间戳设为当前的
+        // 这样在接下来计算 remaining 的值时会大于0
+        if (!previous && options.leading === false) previous = now;
+        // 计算剩余时间
+        var remaining = wait - (now - previous);
+        context = this;
+        args = arguments;
+        // 如果当前调用已经大于上次调用时间 + wait
+        // 或者用户手动调了时间
+        // 如果设置了 trailing，只会进入这个条件
+        // 如果没有设置 leading，那么第一次会进入这个条件
+        // 还有一点，你可能会觉得开启了定时器那么应该不会进入这个 if 条件了
+        // 其实还是会进入的，因为定时器的延时
+        // 并不是准确的时间，很可能你设置了2秒
+        // 但是他需要2.2秒才触发，这时候就会进入这个条件
+        if (remaining <= 0 || remaining > wait) {
+          // 如果存在定时器就清理掉否则会调用二次回调
+          if (timeout) {
+            clearTimeout(timeout);
+            timeout = null;
+          }
+          previous = now;
+          result = func.apply(context, args);
+          if (!timeout) context = args = null;
+        } else if (!timeout && options.trailing !== false) {
+          // 判断是否设置了定时器和 trailing
+          // 没有的话就开启一个定时器
+          // 并且不能不能同时设置 leading 和 trailing
+          timeout = setTimeout(later, remaining);
+        }
+        return result;
+      };
+    };
+    
+    window.onresize = function() {
+      console.log('clientWidth:', doc.clientWidth);
+    }
+
+    // window.onscroll = throttle1(function() {
+    //   console.log('scrollTop1:', doc.scrollTop);
+    // }, 500)
+
+    // window.onscroll = throttle2(function() {
+    //   console.log('scrollTop2:', doc.scrollTop);
+    // }, 500)
+
+    // window.onscroll = throttle3(function() {
+    //   console.log('scrollTop3:', doc.scrollTop);
+    // }, 500)
+
+    // window.onscroll = throttle4(function() {
+    //   console.log('scrollTop4:', doc.scrollTop);
+    // }, 500)
+
+    // window.onscroll = throttle5(function() {
+    //   console.log('scrollTop5:', doc.scrollTop);
+    // }, 500, {leading: false})
+
+    // window.onscroll = throttle5(function() {
+    //   console.log('scrollTop5:', doc.scrollTop);
+    // }, 500, {trailing: false})
+
+    // 目前为止的最佳实现
+    window.onscroll = throttle5(function() {
+      console.log('scrollTop5:', doc.scrollTop);
+    }, 500)
+  </script>
+</body>
+</html>
